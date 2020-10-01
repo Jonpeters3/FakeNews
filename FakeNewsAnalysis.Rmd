@@ -11,7 +11,6 @@ output:
 ## Libraries
 library(tidyverse)
 library(sentimentr)
-library(textcat)
 
 ## Read in the Data
 fakeNews.train <- read_csv("train.csv")
@@ -25,19 +24,25 @@ fakeNews$author <- tolower(fakeNews$author)
 
 
 ```{r}
+# before storing label as a factor
+# counts number of fake news authors
 (fake <- fakeNews %>%
   filter(label == 1) %>%
   group_by(author) %>%
   summarise(n = sum(label)) %>%
   arrange(-n)) %>% head
 
+# counts number of real news authors
 (legit <- fakeNews %>%
   filter(label == 0) %>%
   group_by(author) %>%
   summarise(n = sum(label + 1)) %>%
   arrange(-n)) %>% head
 
-sum( fake$author %in% legit$author)
+sum( fake$author %in% legit$author) #calculates number of overlap between the two lists
+
+#labels safe authors as "reliable" and fake news authors with "unreliable"
+fakeNews$author <- ifelse(fakeNews$author %in% fake$author, "unreliable", "reliable")
 ```
 
 ```{r}
@@ -55,9 +60,28 @@ fakeNews$lan_text <- cld2::detect_language(text = fakeNews$text, plain_text = FA
 
 fakeNews$lan_title <- cld2::detect_language(text = fakeNews$title, plain_text = FALSE)
 
-unique(fakeNews$lan)
+unique(fakeNews$lan_text)
+sum(fakeNews$lan_text != fakeNews$lan_title, na.rm = TRUE)
 ```
 
+```{r}
+
+```
+
+
+```{r}
+token_obj <- quanteda::tokens(fakeNews$text, remove_numbers = FALSE, remove_punct = FALSE, remove_symbols = TRUE, remove_separators = TRUE)
+
+lex_div <- quanteda::textstat_lexdiv(token_obj, measure = c("TTR", "C", "R", "CTTR"))
+
+fakeNews$lex_div <- lex_div$TTR
+```
+
+
+```{r}
+fakeNews$lex_div <- lex_div$TTR
+ggplot(fakeNews %>% filter(label == c(0,1)), mapping = aes(x = label, y = lex_div)) + geom_boxplot() + theme_classic()
+```
 
 
 ```{r}
