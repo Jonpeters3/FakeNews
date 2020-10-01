@@ -5,14 +5,63 @@ output:
     df_print: paged
 ---
 
+
+
 ```{r}
 ## Libraries
 library(tidyverse)
+library(sentimentr)
+library(textcat)
 
 ## Read in the Data
 fakeNews.train <- read_csv("train.csv")
 fakeNews.test <- read_csv("test.csv")
 fakeNews <- bind_rows(train=fakeNews.train, test=fakeNews.test,
                       .id="Set")
+
+fakeNews$text <- tolower(fakeNews$text)
+fakeNews$author <- tolower(fakeNews$author)
+```
+
+
+```{r}
+(fake <- fakeNews %>%
+  filter(label == 1) %>%
+  group_by(author) %>%
+  summarise(n = sum(label)) %>%
+  arrange(-n)) %>% head
+
+(legit <- fakeNews %>%
+  filter(label == 0) %>%
+  group_by(author) %>%
+  summarise(n = sum(label + 1)) %>%
+  arrange(-n)) %>% head
+
+sum( fake$author %in% legit$author)
+```
+
+```{r}
+fakeNews$label <- as.factor(fakeNews$label)
+ggplot(data = fakeNews %>% filter(label == c(0,1)), mapping = aes(x=label)) + geom_bar() + theme_classic()
+```
+
+
+```{r}
+
+```
+
+```{r}
+fakeNews$lan_text <- cld2::detect_language(text = fakeNews$text, plain_text = FALSE)
+
+fakeNews$lan_title <- cld2::detect_language(text = fakeNews$title, plain_text = FALSE)
+
+unique(fakeNews$lan)
+```
+
+
+
+```{r}
+sentiment_df <- sentiment_by(get_sentences(fakeNews$text))
+fakeNews$tone <- sentiment_df$ave_sentiment
 ```
 
