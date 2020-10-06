@@ -1,11 +1,4 @@
----
-title: "Fake News"
-output:
-  html_document:
-    df_print: paged
----
 
-```{r}
 ## Libraries
 library(tidyverse)
 library(caret)
@@ -20,33 +13,29 @@ rm(fakeNews)
 fakeNewsTemp.train <- fakeNewsTemp %>% filter(!is.na(isFake))
 fakeNewsTemp.test <- fakeNewsTemp %>% filter(is.na(isFake))
 
-```
 
-```{r}
 tune.grid = expand.grid(n.trees = c(50, 100, 150),
                         interaction.depth = c(2, 3, 4),
                         shrinkage = .1,
                         n.minobsinnode = 10)
 
 boost <- train(form=isFake~., 
-                data=(fakeNewsTemp.train %>% select(-Id)),
-                method = "gbm",
-                trControl=trainControl(method="repeatedcv",
-                                       number=10,
-                                       repeats = 5),
+               data=(fakeNewsTemp.train %>% select(-Id)),
+               method = "gbm",
+               trControl=trainControl(method="repeatedcv",
+                                      number=10,
+                                      repeats = 5),
                preProc = c("center","scale"),
                tuneGrid = tune.grid,
                verbose = FALSE
-                )
+)
 
-#plot(boost)
+plot(boost)
 boost$bestTune
 boost$results
 ```
 
-```{r}
+
 imdb.preds <- data.frame(Id=fakeNewsTemp.test$Id, Predicted = predict(boost, newdata = fakeNewsTemp.test))
 
 write_csv(x=imdb.preds, path="./Peters_Submission_Boost.csv")
-```
-
