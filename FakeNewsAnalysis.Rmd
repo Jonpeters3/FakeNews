@@ -5,63 +5,48 @@ output:
     df_print: paged
 ---
 
-
-
 ```{r}
 ## Libraries
 library(tidyverse)
-library(sentimentr)
-library(textcat)
+library(caret)
 
 ## Read in the Data
-fakeNews.train <- read_csv("train.csv")
-fakeNews.test <- read_csv("test.csv")
-fakeNews <- bind_rows(train=fakeNews.train, test=fakeNews.test,
-                      .id="Set")
+fakeNews <- read_csv("CleanFakeNews.csv")
 
-fakeNews$text <- tolower(fakeNews$text)
-fakeNews$author <- tolower(fakeNews$author)
-```
+fakeNewsTemp <- fakeNews[,1:12]
 
+rm(fakeNews)
 
-```{r}
-(fake <- fakeNews %>%
-  filter(label == 1) %>%
-  group_by(author) %>%
-  summarise(n = sum(label)) %>%
-  arrange(-n)) %>% head
-
-(legit <- fakeNews %>%
-  filter(label == 0) %>%
-  group_by(author) %>%
-  summarise(n = sum(label + 1)) %>%
-  arrange(-n)) %>% head
-
-sum( fake$author %in% legit$author)
-```
-
-```{r}
-fakeNews$label <- as.factor(fakeNews$label)
-ggplot(data = fakeNews %>% filter(label == c(0,1)), mapping = aes(x=label)) + geom_bar() + theme_classic()
-```
-
-
-```{r}
+fakeNewsTemp.train <- fakeNewsTemp %>% filter(!is.na(isFake))
+fakeNewsTemp.test <- fakeNewsTemp %>% filter(is.na(isFake))
 
 ```
 
 ```{r}
-fakeNews$lan_text <- cld2::detect_language(text = fakeNews$text, plain_text = FALSE)
+tune.grid = expand.grid(n.trees = c(50, 100, 150),
+                        interaction.depth = c(2, 3, 4),
+                        shrinkage = .1,
+                        n.minobsinnode = 10)
 
-fakeNews$lan_title <- cld2::detect_language(text = fakeNews$title, plain_text = FALSE)
+boost <- train(form=isFake~., 
+                data=(fakeNewsTemp.train %>% select(-Id)),
+                method = "gbm",
+                trControl=trainControl(method="repeatedcv",
+                                       number=10,
+                                       repeats = 5),
+               preProc = c("center","scale"),
+               tuneGrid = tune.grid,
+               verbose = FALSE
+                )
 
-unique(fakeNews$lan)
+#plot(boost)
+boost$bestTune
+boost$results
 ```
 
-
-
 ```{r}
-sentiment_df <- sentiment_by(get_sentences(fakeNews$text))
-fakeNews$tone <- sentiment_df$ave_sentiment
+imdb.preds <- data.frame(Id=fakeNewsTemp.test$Id, Predicted = predict(boost, newdata = fakeNewsTemp.test))
+
+write_csv(x=imdb.preds, path="./Peters_Submission_Boost.csv")
 ```
 
