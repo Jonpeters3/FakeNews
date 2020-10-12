@@ -6,36 +6,45 @@ library(caret)
 ## Read in the Data
 fakeNews <- read_csv("CleanFakeNews.csv")
 
-fakeNewsTemp <- fakeNews[,1:12]
+fakeNews$isFake <- as.factor(fakeNews$isFake)
+
+fakeNewsTemp.train <- fakeNews %>% filter(!is.na(isFake))
+fakeNewsTemp.test <- fakeNews %>% filter(is.na(isFake))
 
 rm(fakeNews)
 
-fakeNewsTemp.train <- fakeNewsTemp %>% filter(!is.na(isFake))
-fakeNewsTemp.test <- fakeNewsTemp %>% filter(is.na(isFake))
+fakeNewsTemp.train$isFake <- as.factor(fakeNewsTemp.train$isFake)
+fakeNewsTemp.test$isFake <- as.factor(fakeNewsTemp.test$isFake)
 
+fakeNewsTemp.test$author_type <- ifelse(fakeNewsTemp.test$author_type == "unknown", "unreliable", fakeNewsTemp.test$author_type)
 
-tune.grid = expand.grid(n.trees = c(50, 100, 150),
-                        interaction.depth = c(2, 3, 4),
-                        shrinkage = .1,
-                        n.minobsinnode = 10)
+fakeNewsTemp.train <- fakeNewsTemp.train %>% select(-lan)
+fakeNewsTemp.test <- fakeNewsTemp.test %>% select(-lan) 
+
+#fakeNewsTemp.train <- fakeNewsTemp.train[sample(nrow(fakeNewsTemp.train), 50), 1:12]
+
+tune.grid = expand.grid(n.trees = c(50, 100, 200, 500),
+interaction.depth = seq(3, 10, 1),
+shrinkage = c(.1, .2, .01),
+n.minobsinnode = seq(5, 15, 1))
 
 boost <- train(form=isFake~., 
                data=(fakeNewsTemp.train %>% select(-Id)),
                method = "gbm",
                trControl=trainControl(method="repeatedcv",
-                                      number=10,
-                                      repeats = 5),
-               preProc = c("center","scale"),
+                                      number= 5,
+                                      repeats = 3),
                tuneGrid = tune.grid,
                verbose = FALSE
 )
+beepr::beep()
 
 plot(boost)
 boost$bestTune
 boost$results
-```
+print("Run Complete")
 
+imdb.preds <- data.frame(Id=fakeNewsTemp.test$Id, label = predict(boost, newdata = fakeNewsTemp.test))
 
-imdb.preds <- data.frame(Id=fakeNewsTemp.test$Id, Predicted = predict(boost, newdata = fakeNewsTemp.test))
-
-write_csv(x=imdb.preds, path="./Peters_Submission_Boost.csv")
+save(list=c("boost", "imdb.preds"), file="./Preds.RData")
+write_csv(x=imdb.preds, path="./Peters_Submission.csv")
